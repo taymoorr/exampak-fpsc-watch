@@ -1,0 +1,53 @@
+name: FPSC watch
+
+# Every 10 minutes: look at fpsc.gov.pk, tell exampak.com about anything new, remember what was seen.
+# GitHub may start a run a few minutes late. A run takes about 30 seconds.
+on:
+  schedule:
+    - cron: '*/10 * * * *'
+  workflow_dispatch:
+
+concurrency:
+  group: fpsc-watch
+  cancel-in-progress: false
+
+permissions:
+  contents: write # only to save state.json
+
+jobs:
+  watch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Look at FPSC and report
+        env:
+          # FPSC's server does not send its intermediate certificate: this adds it, certificate checking stays on.
+          NODE_EXTRA_CA_CERTS: ${{ github.workspace }}/fpsc-intermediate.pem
+          EXAMPAK_KEY: ${{ secrets.EXAMPAK_KEY }}
+        run: node watch.mjs
+
+      - name: Save what was seen
+        if: always()
+        run: |
+          git config user.name "fpsc-watch"
+          git config user.email "fpsc-watch@users.noreply.github.com"
+          git add state.json
+          if ! git diff --cached --quiet; then
+            git commit -m "Seen: $(date -u +'%Y-%m-%d %H:%M') UTC"
+            git pull --rebase -q origin main || true
+            git push -q origin HEAD:main
+          fi
+          # GitHub switches off scheduled runs after 60 quiet days: one small commit a month prevents that.
+          last=$(git log -1 --format=%ct)
+          if [ $(( $(date +%s) - last )) -gt 2160000 ]; then
+            date -u +'%Y-%m-%d' > heartbeat.txt
+            git add heartbeat.txt
+            git commit -q -m "Monthly keep-alive"
+            git push -q origin HEAD:main
+          fi
