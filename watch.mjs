@@ -23,6 +23,7 @@ const here = dirname(fileURLToPath(import.meta.url));
 const STATE = join(here, 'state.json');
 const BASE = 'https://www.fpsc.gov.pk';
 const ENDPOINT = 'https://exampak.com/api/fpsc-event';
+const CHECK_ENDPOINT = 'https://exampak.com/api/fpsc-check';
 
 // Section pages. `type` is what a document there means; Short Listing is split further by file name (see typeOf).
 const PAGES = [
@@ -195,6 +196,20 @@ if (!seed && !dry && events.length) {
       for (const ev of events) state.groups[ev.group] = (state.groups[ev.group] ?? []).filter((f) => f !== ev.file);
     }
   }
+}
+
+// Every complete run (all pages read, any news delivered) tells ExamPak the time, so pages show today's "Checked" date
+// without a rebuild. A failure here is not fatal: it only means the date waits for the next run.
+if (!seed && !dry && !failed && problems.length === 0 && process.env.EXAMPAK_KEY) {
+  try {
+    const res = await fetch(CHECK_ENDPOINT, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', authorization: `Bearer ${process.env.EXAMPAK_KEY}` },
+      body: JSON.stringify({ pages: PAGES.length }),
+      signal: AbortSignal.timeout(20000),
+    });
+    console.log(res.ok ? 'Told ExamPak the check time.' : `! ExamPak did not take the check time (HTTP ${res.status}).`);
+  } catch (e) { console.log(`! Could not send the check time (${e.message}).`); }
 }
 
 if (!dry) {
