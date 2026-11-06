@@ -191,6 +191,8 @@ if (!seed && !dry && events.length) {
           signal: AbortSignal.timeout(30000),
         });
         if (!res.ok) throw new Error(`ExamPak answered HTTP ${res.status}`);
+        const said = await res.json().catch(() => ({}));
+        if (said.invalid > 0) { console.log(`! ExamPak refused ${said.invalid} document(s) as invalid: the run is marked failed so it shows red on GitHub.`); failed = true; }
       }
       console.log(`Sent ${body.length} event(s) to ExamPak.`);
     } catch (e) {
