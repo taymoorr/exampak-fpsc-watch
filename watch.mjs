@@ -192,7 +192,14 @@ if (!seed && !dry && events.length) {
         });
         if (!res.ok) throw new Error(`ExamPak answered HTTP ${res.status}`);
         const said = await res.json().catch(() => ({}));
-        if (said.invalid > 0) { console.log(`! ExamPak refused ${said.invalid} document(s) as invalid: the run is marked failed so it shows red on GitHub.`); failed = true; }
+        if (said.invalid > 0) {
+          // The Worker does not say which one it refused, so forget this whole batch: the next run re-sends it, and
+          // documents ExamPak already stored are ignored there as repeats. Without this the refused document was
+          // remembered and never reported again (that is how Ad 4/2026 was missed for two hours).
+          console.log(`! ExamPak refused ${said.invalid} document(s) as invalid: nothing from this batch is remembered, the next run tries again, and the run shows red on GitHub.`);
+          failed = true;
+          for (const ev of events) state.groups[ev.group] = (state.groups[ev.group] ?? []).filter((f) => f !== ev.file);
+        }
       }
       console.log(`Sent ${body.length} event(s) to ExamPak.`);
     } catch (e) {
