@@ -97,7 +97,10 @@ function jobItems(html) {
     throw new Error('could not find the list of jobs on the page');
   }
   const list = JSON.parse(JSON.parse('"' + m[1] + '"'));
-  return list.map((j) => ({ url: j.url ? (j.url.startsWith('http') ? j.url : BASE + j.url) : `job:${j.id}`, file: `job-${j.id}`, title: j.title ?? j.name ?? '', date: j.date ?? '' }));
+  // FPSC gives an ad no address of its own: the PDF link is inside its description. Without a real fpsc.gov.pk address the Worker rejects the
+  // event (that is how Ad 4/2026 went unnoticed on 6 Nov 2026), so fall back to the Jobs page itself.
+  const pdf = (j) => { const h = String(j.description ?? '').match(/href="([^"]*\/uploads\/[^"]+\.pdf)"/i)?.[1]; return h ? (h.startsWith('http') ? h : BASE + h) : ''; };
+  return list.map((j) => ({ url: j.url ? (j.url.startsWith('http') ? j.url : BASE + j.url) : pdf(j) || `${BASE}/Jobs?section=GR`, file: `job-${j.id}`, title: j.title ?? j.name ?? '', date: j.date ?? '' }));
 }
 
 /** Case number, optional letter (135A) and year from a title or file name: F.4-156-2026-R-..., F4_3_2026 Post, Interview_Program_164_2026. */
